@@ -20,46 +20,47 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef FRM2PNG_FRMFALLOUTFILE_H
-#define FRM2PNG_FRMFALLOUTFILE_H
+using System;
+using System.IO;
 
-// C++ standard includes
-#include <map>
-#include <vector>
-
-// frm2png includes
-#include "FalloutFile.h"
-#include "FrmFrame.h"
-
-// Third party includes
-
-namespace frm2png
+namespace Frm2Png
 {
-    class FrmFalloutFile : public FalloutFile
+    class FalloutFile : IDisposable
     {
-        public:
-            FrmFalloutFile(const std::string& filename);
-            virtual ~FrmFalloutFile();
+            public FalloutFile(string filename)
+        {
+            _stream = new FileStream(filename, FileMode.Open);
+        }
+        public void Dispose()
+        {
+            _stream.Close();
+        }
 
-            std::map<uint8_t, std::vector<FrmFrame>>& frames();
+        protected byte ReadByte()
+        {
+            var b = _stream.ReadByte();
+            if (b >= 0)
+            {
+                return (byte)b;
+            }
+            else
+            {
+                throw new InvalidOperationException(string.Format("Read past end of file, position {0}", _stream.Position));
+            }
+        }
+        protected ushort ReadShort()
+        {
+            var buffer = new byte[2];
+            _stream.Read(buffer, 0, 2);
+            return (ushort)(buffer[1] + 256 * buffer[0]);
+        }
+        protected uint ReadInt()
+        {
+            var buffer = new byte[4];
+            _stream.Read(buffer, 0, 4);
+            return (uint)(buffer[3] + 256 * buffer[2] + 65536 * buffer[1] + 16777216 * buffer[0]);
+        }
 
-            uint16_t actionFrame();
-            uint16_t framesPerDirection();
-            uint16_t framesPerSecond();
-
-            uint32_t version();
-
-        protected:
-            uint8_t _colorModifier = 4;
-
-            uint16_t _actionFrame;
-            uint16_t _framesPerDirection;
-            uint16_t _framesPerSecond;
-
-            uint32_t _version;
-
-            // direction => frames
-            std::map<uint8_t, std::vector<FrmFrame>> _frames;
+        protected readonly Stream _stream;
     };
 }
-#endif // FRM2PNG_FRMFALLOUTFILE_H
