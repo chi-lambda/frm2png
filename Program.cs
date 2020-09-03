@@ -19,15 +19,20 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  */
- 
- using System;
+
+using System;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 
 namespace Frm2Png
 {
     class Program
     {
+
+        private static string baseInPath = ".";
+        private static string baseOutPath = ".";
+
         static void Usage(string binaryName)
         {
             Console.WriteLine("FRM to PNG converter v0.1.4");
@@ -46,50 +51,79 @@ namespace Frm2Png
 
         public static int Main(string[] args)
         {
-            if (args.Length != 1)
+            ParseParameters(args);
+            if (File.GetAttributes(baseInPath).HasFlag(FileAttributes.Directory))
             {
-                Usage("frm2png");
-                return 1;
+                WalkDirectory(baseInPath, baseOutPath);
             }
-
-            string filename = args[0];
-            string outname = filename.Substring(0, filename.LastIndexOf('.')) + ".png";
-
-            try
+            else
             {
-                FrmFalloutFile frm = new FrmFalloutFile(filename);
-
-                FrmInfo(frm);
-
-                // find maximum width and height
-                int maxWidth = frm.Frames.SelectMany(f => f).Select(f => f.GetLength(0)).Max();
-                int maxHeight = frm.Frames.SelectMany(f => f).Select(f => f.GetLength(1)).Max();
-
-                var bitmap = new Bitmap(maxWidth * frm.FramesPerDirection, maxHeight * frm.Frames.Count);
-
-                for (var i = 0; i != frm.Frames.Count; ++i)
-                {
-                    for (var j = 0; j != frm.Frames[i].Count; ++j)
-                    {
-                        var frame = frm.Frames[i][j];
-                        for (var y = 0; y != frame.GetLength(1); ++y)
-                        {
-                            for (var x = 0; x != frame.GetLength(0); ++x)
-                            {
-                                bitmap.SetPixel(maxWidth * j + x, maxHeight * i + y, frame[x, y]);
-                            }
-                        }
-                    }
-                }
-                bitmap.Save(outname, System.Drawing.Imaging.ImageFormat.Png);
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-                return 1;
+                DoFile(baseInPath, baseOutPath);
             }
 
             return 0;
+        }
+
+        private static void ParseParameters(string[] args)
+        {
+            int i = 0;
+            while (i < args.Length)
+            {
+                var arg = args[i];
+                switch (arg)
+                {
+                    case "-o":
+                        if (args.Length >= i)
+                        {
+                            baseOutPath = args[i + 1];
+                        }
+                        else
+                        {
+                            throw new ArgumentException("must provide path to -o");
+                        }
+                        i++;
+                        break;
+                    default:
+                        baseInPath = arg;
+                        break;
+                }
+                i++;
+            }
+        }
+
+        private static void WalkDirectory(string inPath, string outPath = ".")
+        {
+            foreach (var file in Directory.EnumerateFileSystemEntries(inPath))
+            {
+                var filename = Path.GetFileName(file);
+                if (File.GetAttributes(file).HasFlag(FileAttributes.Directory))
+                {
+                    WalkDirectory(file, Path.Combine(outPath, filename));
+                }
+                else
+                {
+                    DoFile(file, outPath);
+                }
+            }
+        }
+
+        private static void DoFile(string inFile, string outPath = ".")
+        {
+            if (!string.Equals(Path.GetExtension(inFile), ".frm", StringComparison.InvariantCultureIgnoreCase))
+            {
+                return;
+            }
+            string outFile = Path.Combine(outPath, Path.GetFileNameWithoutExtension(inFile) + ".png");
+            Console.WriteLine("{0} -> {1}", inFile, outFile);
+            FrmFalloutFile frm = new FrmFalloutFile(inFile);
+            FrmInfo(frm);
+
+            // find maximum width and height
+            int maxWidth = frm.Frames.SelectMany(f => f).Select(f => f.GetLength(0)).Max();
+            int maxHeight = frm.Frames.SelectMany(f => f).Select(f => f.GetLength(1)).Max();
+
+            var bitmap = frm.ToBitmap();
+            bitmap.Save(outFile, System.Drawing.Imaging.ImageFormat.Png);
         }
     }
 }

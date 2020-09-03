@@ -23,6 +23,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 
 namespace Frm2Png
 {
@@ -94,6 +95,30 @@ namespace Frm2Png
                     Frames[i].Add(frame);
                 }
             }
+        }
+
+        public Bitmap ToBitmap(){
+            // find maximum width and height
+            int maxWidth = Frames.SelectMany(f => f).Select(f => f.GetLength(0)).Max();
+            int maxHeight = Frames.SelectMany(f => f).Select(f => f.GetLength(1)).Max();
+
+            var bitmap = new Bitmap(maxWidth * FramesPerDirection, maxHeight * Frames.Count);
+
+            for (var i = 0; i != Frames.Count; ++i)
+            {
+                for (var j = 0; j != Frames[i].Count; ++j)
+                {
+                    var frame = Frames[i][j];
+                    for (var y = 0; y != frame.GetLength(1); ++y)
+                    {
+                        for (var x = 0; x != frame.GetLength(0); ++x)
+                        {
+                            bitmap.SetPixel(maxWidth * j + x, maxHeight * i + y, frame[x, y]);
+                        }
+                    }
+                }
+            }
+            return bitmap;
         }
 
         private byte _colorModifier = 4;
